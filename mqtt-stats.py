@@ -33,13 +33,6 @@ except:
 	logging.error ("require Gtk")
 	sys.exit(1)
 
-try:
-	from Mimic.ErrorInfo import *
-	from Mimic.SearchPath import *
-except:
-	logging.error ("require Mimic")
-	sys.exit(1)
-
 import paho.mqtt.client as mqtt
 
 import json
@@ -555,8 +548,6 @@ class Handler:
 ###########################################################################
 if __name__ == "__main__":
 	GObject.threads_init()
-
-	searchpath = SearchPath()
 
 	main = MyApp()
 	main.start()
