@@ -7,6 +7,8 @@
 ## https://www.gnu.org/licenses/gpl-3.0.en.html
 ##############################################################################
 
+from __future__ import print_function
+
 import os 
 import getopt
 import sys
@@ -29,6 +31,7 @@ gi.require_version('Gtk', '3.0')
 try:
 	from gi.repository import Gtk
 	from gi.repository import GObject
+	from gi.repository import Pango as pango
 except:
 	logging.error ("require Gtk")
 	sys.exit(1)
@@ -160,19 +163,17 @@ class _UpdateThread(threading.Thread, _IdleObject):
 #				continue
 #			count = 0
 
-#			logging.debug ("update_cycle start")
+			logging.debug ("update_cycle start")
 			self.update_cycle()
-#			logging.debug ("update_cycle completed")
+			logging.debug ("update_cycle completed")
 			self.emit("completed")
 
 		logging.debug ("done update_main")
 
 	# run a poll cycle
-	# if agents have changed, handle the first 100 immediately for
-	# quick visual response, the rest later
 	@trace
 	def update_cycle(self):
-#		logging.debug ("done update_cycle")
+		# logging.debug ("done update_cycle " )
 		return
 
 
@@ -183,13 +184,14 @@ class Topic():
 		self.topic = topic
 		self.number = number
 		self.count = 1;		# seen at least once
+		self.last_count = 0;	# updated every second
 		self.bytes = bytes
 		self.last_time = last_time
 		self.last_payload = last_payload
 		self.rowref = rowref
 
-	def display(self):
-		print "Topic: %s, count %d, bytes %d" % (self.topic, self.count, self.bytes)
+	def dump(self, outfile):
+		print ("%6d %20s %6d %6d %s" % (self.number, self.topic, self.count, self.bytes, self.last_payload), file=outfile)
 
 ###########################################################################
 # MQTT subscriber code
@@ -262,6 +264,7 @@ class MyApp:
 		self.is_paused = False
 
 		self.messages_received = 0
+		self.last_received = 0
 		self.num_topics = 0
 		self.topics = dict()
 		self.clear_stats = False
@@ -293,7 +296,7 @@ class MyApp:
 	###############################
 	def command_line(self):
 		try:
-			opts, args = getopt.getopt(sys.argv[1:], "h:p:t:v", ["host=", "port=", "topic=", "qos=", "verbose"])
+			opts, args = getopt.getopt(sys.argv[1:], "h:p:t:q:v", ["host=", "port=", "topic=", "qos=", "verbose"])
 		except getopt.GetoptError as err:
 			# print help information and exit:
 			logging.error (str(err)) # will print something like "option -a not recognized"
@@ -335,10 +338,6 @@ class MyApp:
 		self.aboutdialog = self.builder.get_object("aboutdialog1")
 
 		# File->New
-		self.filenewdialog = self.builder.get_object("filenewdialog")
-		self.filenew_rb1 = self.builder.get_object("filenew_radiobutton1")
-		self.filenew_rb2 = self.builder.get_object("filenew_radiobutton2")
-		self.filenew_agents = self.builder.get_object("filenew_agents")
 
 		self.errordialog = self.builder.get_object("errordialog")
 
@@ -359,13 +358,19 @@ class MyApp:
 		self.infolabel1.set_text('MQTT Broker: ' + self.host_ip + '\nStarted: ' + time.ctime (time.time()))
 
 		self.infolabel2 = self.builder.get_object("infolabel2")
-		self.infolabel2.set_text("Topic: " + main.topic)
+		self.infolabel2.set_text("Subscribed Topic: " + main.topic)
 
 		self.infolabel3 = self.builder.get_object("infolabel3")
 		self.infolabel3.set_text("")
 
 		self.infolabel4 = self.builder.get_object("infolabel4")
 		self.infolabel4.set_text("")
+
+		self.infolabel5 = self.builder.get_object("infolabel5")
+		self.infolabel5.set_text("")
+
+		self.infolabel6 = self.builder.get_object("infolabel6")
+		self.infolabel6.set_text("")
 
 		# the liststore containing the agents
 		self.topicstore = self.builder.get_object("topicstore")
@@ -374,44 +379,66 @@ class MyApp:
 		self.treeview = treeview
 		tvcolumn = Gtk.TreeViewColumn('Number')
 		treeview.append_column(tvcolumn)
-		cell = Gtk.CellRendererText()
-		tvcolumn.pack_start(cell, True)
-		tvcolumn.add_attribute(cell, 'text', 0)
+		numbercell = Gtk.CellRendererText(xalign=1.0)
+		numbercell.set_property('ellipsize', pango.EllipsizeMode.END)
+		tvcolumn.pack_start(numbercell, True)
+		tvcolumn.add_attribute(numbercell, 'text', 0)
 		tvcolumn.set_sort_column_id(0)
+		tvcolumn.set_resizable(True)
 
 		tvcolumn = Gtk.TreeViewColumn('Topic')
 		treeview.append_column(tvcolumn)
-		cell = Gtk.CellRendererText()
-		tvcolumn.pack_start(cell, True)
-		tvcolumn.add_attribute(cell, 'text', 1)
+		stringcell = Gtk.CellRendererText()
+		stringcell.set_property('ellipsize', pango.EllipsizeMode.END)
+		tvcolumn.pack_start(stringcell, True)
+		tvcolumn.add_attribute(stringcell, 'text', 1)
 		tvcolumn.set_sort_column_id(1)
+		tvcolumn.set_resizable(True)
+		#tvcolumn.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
+		#tvcolumn.set_min_width(20)
+		#tvcolumn.set_fixed_width(80)
+		#tvcolumn.set_expand(True)
 
-		tvcolumn = Gtk.TreeViewColumn('Count')
+		tvcolumn = Gtk.TreeViewColumn('Messages')
 		treeview.append_column(tvcolumn)
-		tvcolumn.pack_start(cell, True)
-		tvcolumn.add_attribute(cell, 'text', 2)
+		tvcolumn.pack_start(numbercell, True)
+		tvcolumn.add_attribute(numbercell, 'text', 2)
 		tvcolumn.set_sort_column_id(2)
+		tvcolumn.set_resizable(True)
+
+		tvcolumn = Gtk.TreeViewColumn('Msgs/sec')
+		treeview.append_column(tvcolumn)
+		tvcolumn.pack_start(numbercell, True)
+		tvcolumn.add_attribute(numbercell, 'text', 3)
+		tvcolumn.set_sort_column_id(3)
+		tvcolumn.set_resizable(True)
 
 		tvcolumn = Gtk.TreeViewColumn('Bytes')
 		treeview.append_column(tvcolumn)
-		tvcolumn.pack_start(cell, True)
-		tvcolumn.add_attribute(cell, 'text', 3)
-		tvcolumn.set_sort_column_id(3)
+		tvcolumn.pack_start(numbercell, True)
+		tvcolumn.add_attribute(numbercell, 'text', 4)
+		tvcolumn.set_sort_column_id(4)
+		tvcolumn.set_resizable(True)
 
 		tvcolumn = Gtk.TreeViewColumn('Time')
 		treeview.append_column(tvcolumn)
-		tvcolumn.pack_start(cell, True)
-		tvcolumn.add_attribute(cell, 'text', 4)
-		tvcolumn.set_sort_column_id(4)
+		tvcolumn.pack_start(stringcell, True)
+		tvcolumn.add_attribute(stringcell, 'text', 5)
+		tvcolumn.set_sort_column_id(5)
+		tvcolumn.set_resizable(True)
 
 		tvcolumn = Gtk.TreeViewColumn('Last Payload')
 		treeview.append_column(tvcolumn)
-		tvcolumn.pack_start(cell, True)
-		tvcolumn.add_attribute(cell, 'text', 5)
-		tvcolumn.set_sort_column_id(5)
+		tvcolumn.pack_start(stringcell, True)
+		tvcolumn.add_attribute(stringcell, 'text', 6)
+		tvcolumn.set_sort_column_id(6)
+		tvcolumn.set_resizable(True)
 
-		box = Gtk.VBox(False, 5)
+		box = Gtk.VBox(False, 6)
 		scrolledwindow = self.builder.get_object("scrolledwindow1")
+		scrolledwindow.set_policy(
+		            Gtk.PolicyType.AUTOMATIC,
+			    Gtk.PolicyType.AUTOMATIC)
 		scrolledwindow.add(box)
 		box.pack_start (treeview, True, True, 0)
 
@@ -427,10 +454,14 @@ class MyApp:
 			main.topicstore.clear()
 			main.clear_store = False
 
+		msgpersec = self.messages_received - self.last_received
+		self.last_received = self.messages_received
 		main.infolabel3.set_markup('<span foreground="blue">Messages received: ' + str(main.messages_received) + '</span>')
+		main.infolabel5.set_markup('<span foreground="blue">Messages / sec: ' + str(msgpersec) + '</span>')
 		main.infolabel4.set_markup('<span foreground="green">Topics: ' + str(len(main.topics)) + '</span>')
 
 		# run through the topics and add to the matrix
+		active_topics = 0
 		keys = main.topics.keys()
 		for key in keys:
 		    topic =  main.topics[key]
@@ -449,26 +480,59 @@ class MyApp:
 			except UnicodeError:
 			    topicstr = topic.topic
 
+			# TODO calculate msgpersec
+			msgpersec = topic.count - topic.last_count
+
 			rowref = main.topicstore.append(
 				[
 				topic.number,
 				topicstr,
 				1,
+				msgpersec,
 				topic.bytes,
 				topic.last_time,
 				payloadstr
 				])
 
 			topic.rowref = rowref
+			active_topics += 1
 		    else:
 		    	# redisplay only if new messages for topic
 			displayedcount = main.topicstore.get_value (topic.rowref, 2)
+			# TODO calculate msgpersec
+			msgpersec = topic.count - topic.last_count
+			displayedmsgpersec = main.topicstore.get_value (topic.rowref, 3)
+			do_display = False
 			if topic.count != displayedcount:
-				main.topicstore.set_value (topic.rowref, 2, topic.count)
-				main.topicstore.set_value (topic.rowref, 3, topic.bytes)
-				main.topicstore.set_value (topic.rowref, 4, topic.last_time)
-				main.topicstore.set_value (topic.rowref, 5, payloadstr)
+				active_topics += 1
+				do_display = True
+			else:
+				if msgpersec != displayedmsgpersec:
+					do_display = True
 
+			if do_display:
+				main.topicstore.set_value (topic.rowref, 2, topic.count)
+				main.topicstore.set_value (topic.rowref, 3, msgpersec)
+				main.topicstore.set_value (topic.rowref, 4, topic.bytes)
+				main.topicstore.set_value (topic.rowref, 5, topic.last_time)
+				main.topicstore.set_value (topic.rowref, 6, payloadstr)
+
+			topic.last_count = topic.count;
+
+		main.infolabel6.set_markup('<span foreground="green">Active topics: ' + str(active_topics) + '</span>')
+
+	def dump(self):
+		outfile = open ("dump.lst", "w+")
+		print ("Number Topic                Messages Bytes Last payload", file=outfile)
+		keys = self.topics.keys()
+		for key in keys:
+		    topic =  self.topics[key]
+
+		    topic.dump(outfile)
+
+		outfile.close()
+		print ("dumped to dump.lst")
+		return
 
 	def quit(self):
 		# client.loop_stop()
@@ -494,54 +558,12 @@ class Handler:
 
 		main.clear_stats = True
 
-	def on_filenew_radiobutton_toggled(self, rb, data=None):
-		label = rb.get_label()
-		enable_ok_button = True
-		if rb == main.filenew_rb2:
-			if rb.get_active():
-				main.filenew_agents.set_editable(True)
-				main.filenew_agents.set_visibility(True)
-				if main.filenew_agents.get_text() == '':
-					enable_ok_button = False
-			else:
-				main.filenew_agents.set_editable(False)
-				main.filenew_agents.set_visibility(False)
-
-		filenew_ok = main.builder.get_object("filenew_ok")
-		if enable_ok_button:
-			filenew_ok.set_sensitive(True)
-		else:
-			filenew_ok.set_sensitive(False)
-
-	# Agent->Start menu handler
-	def on_gtk_agentstart_activate(self, menuitem, data=None):
-		treeselection = main.treeview.get_selection()
-		(model, pathlist) = treeselection.get_selected_rows()
-		for path in pathlist :
-			tree_iter = model.get_iter(path)
-			value = model.get_value(tree_iter,0)
-			agent = main.session.get_agent(value)
-			agent.start ()
-		main.show_status_msg("started " + str(len(pathlist)) + " agents")
-
-
-	def on_gtk_agentstop_activate(self, menuitem, data=None):
-		treeselection = main.treeview.get_selection()
-		(model, pathlist) = treeselection.get_selected_rows()
-		for path in pathlist :
-			tree_iter = model.get_iter(path)
-			value = model.get_value(tree_iter,0)
-			agent = main.session.get_agent(value)
-			agent.stop ()
-		main.show_status_msg("stopped " + str(len(pathlist)) + " agents")
+	# File->Save menu handler
+	def on_gtk_filesave_activate(self, menuitem, data=None):
+		main.dump()
 
 	# Help->About menu handler
 	def on_gtk_about_activate(self, menuitem, data=None):
-		if main.session == None:
-			license = "Not connected"
-		else:
-			license = main.session.get_licensing()
-		main.aboutdialog.set_comments (license)
 		self.response = main.aboutdialog.run()
 		main.aboutdialog.hide()
 
