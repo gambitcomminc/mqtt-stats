@@ -6,7 +6,8 @@ Brokers have extensive statistics in the $SYS topic, but not per-topic statistic
 This simple subscriber client displays per-topic statistics, eg. like mqtt-spy or mqtt-lens,
 but more. It uses GTK to present a GUI. This utility allows you to analyze quantitatively
 the published topics underneath a wildcard topic and answer such questions as "which topic
-generates the most messages?" and "which topic generates the most traffic?".
+generates the most messages?" and "which topic generates the most traffic?". You can sort by
+messages/second to get the most active topics. 
 
 Initially, it displays epoch-wide statistics about the number and bytes for each sub-topic
 of the specified topic. In the future we'll add time histograms of usage.
@@ -15,3 +16,7 @@ Example usage:
 
 ./mqtt-stats.py --host iot.eclipse.org --topic '#' --qos 2
 
+If you use File->New it zeros out the collected topics, and will display the active topics from now on. This is because the broker publishes received "will" messages on all topics first. Most of those topics may no longer be active.
+
+
+File -> Save dumps the topic statistics to the file dump.lst. 
