@@ -20,3 +20,9 @@ If you use File->New it zeros out the collected topics, and will display the act
 
 
 File -> Save dumps the topic statistics to the file dump.lst. 
+
+The blog post at
+
+https://gambitcomm.blogspot.com/2018/09/fire-and-forget-vs-complete-control-of.html
+
+illustrates usage of this tool to investigate topic statistics.
