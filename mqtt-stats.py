@@ -18,18 +18,21 @@ import logging
 import threading
 import multiprocessing
 import webbrowser
+import binascii
 
 # debug.setLogger(debug.Debug('all'))
 
-formatting = '%(levelname)s %(asctime)s (%(module)s) - %(message)s'
+formatting = '%(levelname)s %(asctime)s (%(filename)s-%(lineno)d) - %(message)s'
 logging.basicConfig(level=logging.DEBUG, format=formatting, )
 
 
 import gi
 gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
 
 try:
 	from gi.repository import Gtk
+	from gi.repository import Gdk
 	from gi.repository import GObject
 	from gi.repository import Pango as pango
 except:
@@ -149,7 +152,7 @@ class _UpdateThread(threading.Thread, _IdleObject):
 	def update_main(self):
 		while True:
 			# wake up every second for response
-			time.sleep (1)
+			time.sleep (0.999)
 
 			if main.is_stopped:
 				break
@@ -214,7 +217,7 @@ def on_message(client, userdata, msg):
 	main.clear_store = True
 
     bytes = len (msg.payload)
-    timestamp = time.ctime (time.time())
+    now = time.time()
 
 #    logging.debug (msg.topic + ' ' + str(bytes) + ' ' + str(msg.payload))
 
@@ -223,13 +226,13 @@ def on_message(client, userdata, msg):
     # if not already there, add to set of topics detected
     if msg.topic not in main.topics:
     	main.num_topics += 1
-	newtopic = Topic(main.num_topics, msg.topic, bytes, timestamp, msg.payload, None)
+	newtopic = Topic(main.num_topics, msg.topic, bytes, now, msg.payload, None)
 	main.topics[msg.topic] = newtopic
     else:
     	existingtopic = main.topics[msg.topic]
 	existingtopic.count += 1
 	existingtopic.bytes += bytes
-	existingtopic.last_time = timestamp
+	existingtopic.last_time = now
 	existingtopic.last_payload = msg.payload
 
     return
@@ -282,6 +285,8 @@ class MyApp:
 	def start(self):
 		self.command_line()
 
+		self.load_styles()
+
 		self.show_gui()
 		# from now on GUI is expected to be up
 
@@ -322,6 +327,28 @@ class MyApp:
 
 		if self.port_num == None:
 			self.port_num = 1883
+
+	###############################
+	def load_styles(self):
+		# CSS styles for GTK objects
+		style_provider = Gtk.CssProvider()
+		dir_path = os.path.dirname(os.path.realpath(__file__))
+		css_path = dir_path+"/mqtt-stats.css"
+		try:
+			css = open(css_path, 'rb') # rb needed for python 3 support
+		except:
+			logging.warning ("no CSS file " + css_path + ", ignoring...")
+			return
+		css_data = css.read()
+		css.close()
+
+		style_provider.load_from_data(css_data)
+
+		Gtk.StyleContext.add_provider_for_screen(
+		    Gdk.Screen.get_default(),
+		    style_provider,     
+		    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+		)
 
 	###############################
 	def show_gui(self):
@@ -375,7 +402,7 @@ class MyApp:
 		# the liststore containing the agents
 		self.topicstore = self.builder.get_object("topicstore")
 
-		treeview = Gtk.TreeView(self.topicstore)
+		treeview = self.builder.get_object("treeview1")
 		self.treeview = treeview
 		tvcolumn = Gtk.TreeViewColumn('Number')
 		treeview.append_column(tvcolumn)
@@ -434,14 +461,6 @@ class MyApp:
 		tvcolumn.set_sort_column_id(6)
 		tvcolumn.set_resizable(True)
 
-		box = Gtk.VBox(False, 6)
-		scrolledwindow = self.builder.get_object("scrolledwindow1")
-		scrolledwindow.set_policy(
-		            Gtk.PolicyType.AUTOMATIC,
-			    Gtk.PolicyType.AUTOMATIC)
-		scrolledwindow.add(box)
-		box.pack_start (treeview, True, True, 0)
-
 		self.window.show_all()
 
 	###############################
@@ -449,7 +468,14 @@ class MyApp:
 	# the callback on every poller cycle
 	@trace
 	def completed_cb(self, thread):
-#		logging.debug ("completed_cb")
+		# logging.debug ("completed_cb - enter")
+
+		# according to https://en.wikibooks.org/wiki/GTK%2B_By_Example/Tree_View/Tree_Models#Speed_Issues_when_Adding_a_Lot_of_Rows
+		# while we update the model, detach it from the view
+		# but this doubles CPU usage, and no apparent benefits
+		# model = self.treeview.get_model()
+		# self.treeview.set_model (None)
+
 		if main.clear_store:
 			main.topicstore.clear()
 			main.clear_store = False
@@ -462,23 +488,31 @@ class MyApp:
 
 		# run through the topics and add to the matrix
 		active_topics = 0
+		updated_entries = 0
 		keys = main.topics.keys()
 		for key in keys:
 		    topic =  main.topics[key]
-		    try:
-			payloadstr = topic.last_payload.decode('utf-8')
-			#    logging.debug ("payload is UTF-8 " + payloadstr)
-		    except UnicodeError:
-			payloadstr = topic.last_payload
 
 		    if topic.rowref == None:
 
 			# UTF-8 encodings
 			try:
+				payloadstr = topic.last_payload.decode('utf-8')
+				#    logging.debug ("payload is UTF-8 " + payloadstr)
+			except UnicodeError:
+				payloadstr = "0x" + binascii.hexlify (topic.last_payload)
+				# logging.debug ("UnicodeError: payload is not UTF-8 " + topic.last_payload + " >> " + payloadstr)
+
+			try:
 			    topicstr = topic.topic.decode('utf-8')
 			#    logging.debug ("topic is UTF-8 " + topicstr)
 			except UnicodeError:
 			    topicstr = topic.topic
+			    # UWE: still get this error
+			    # Pango-WARNING **: Invalid UTF-8 string passed to pango_layout_set_text()
+			    # but we don't want the hex string for topic as we
+			    # do for payload
+			    # happens much less frequently for topic
 
 			# TODO calculate msgpersec
 			msgpersec = topic.count - topic.last_count
@@ -490,12 +524,13 @@ class MyApp:
 				1,
 				msgpersec,
 				topic.bytes,
-				topic.last_time,
+				time.ctime (topic.last_time),
 				payloadstr
 				])
 
 			topic.rowref = rowref
 			active_topics += 1
+			updated_entries += 1
 		    else:
 		    	# redisplay only if new messages for topic
 			displayedcount = main.topicstore.get_value (topic.rowref, 2)
@@ -511,15 +546,24 @@ class MyApp:
 					do_display = True
 
 			if do_display:
-				main.topicstore.set_value (topic.rowref, 2, topic.count)
-				main.topicstore.set_value (topic.rowref, 3, msgpersec)
-				main.topicstore.set_value (topic.rowref, 4, topic.bytes)
-				main.topicstore.set_value (topic.rowref, 5, topic.last_time)
-				main.topicstore.set_value (topic.rowref, 6, payloadstr)
+				updated_entries += 1
+				try:
+					payloadstr = topic.last_payload.decode('utf-8')
+					#    logging.debug ("payload is UTF-8 " + payloadstr)
+				except UnicodeError:
+					payloadstr = "0x" + binascii.hexlify (topic.last_payload)
+					# logging.debug ("UnicodeError: payload is not UTF-8 " + topic.last_payload + " >> " + payloadstr)
+				main.topicstore.set (topic.rowref, 2, topic.count, 3, msgpersec, 4, topic.bytes, 5, time.ctime (topic.last_time), 6, payloadstr)
 
 			topic.last_count = topic.count;
 
+		logging.debug ("updated entries " + str(updated_entries))
+
+		# restore the model detached above
+		# self.treeview.set_model (model)
+
 		main.infolabel6.set_markup('<span foreground="green">Active topics: ' + str(active_topics) + '</span>')
+		# logging.debug ("completed_cb - exit")
 
 	def dump(self):
 		outfile = open ("dump.lst", "w+")
