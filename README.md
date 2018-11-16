@@ -1,5 +1,7 @@
 # mqtt-stats
-MQTT Topic Statistics
+# MQTT Topic Statistics
+
+## Overview
 
 Brokers have extensive statistics in the $SYS topic, but not per-topic statistics.
 
@@ -11,6 +13,15 @@ messages/second to get the most active topics.
 
 Initially, it displays epoch-wide statistics about the number and bytes for each sub-topic
 of the specified topic. In the future we'll add time histograms of usage.
+
+## Installation / Requirements
+
+This python package requires
+
+* PyGTK https://python-gtk-3-tutorial.readthedocs.io/en/latest/
+* Eclipse Paho MQTT client API https://www.eclipse.org/paho/clients/python/docs/
+
+## Usage
 
 Example usage:
 
