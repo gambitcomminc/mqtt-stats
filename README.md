@@ -19,7 +19,7 @@ of the specified topic. In the future we'll add time histograms of usage.
 This python package requires
 
 * PyGTK https://python-gtk-3-tutorial.readthedocs.io/en/latest/
-* Eclipse Paho MQTT client API https://www.eclipse.org/paho/clients/python/docs/
+* Eclipse Paho MQTT client API 1.5 https://www.eclipse.org/paho/clients/python/docs/
 
 ## Usage
 
