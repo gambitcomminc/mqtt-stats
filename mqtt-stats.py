@@ -199,49 +199,49 @@ class Topic():
 # MQTT subscriber code
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
-    logging.debug ("MQTT client connected with result code "+str(rc))
+	logging.debug ("MQTT client connected with result code "+str(rc))
 
-    # Subscribing in on_connect() means that if we lose the connection and
-    # reconnect then subscriptions will be renewed.
-    client.subscribe(main.topic, main.qos)
+	# Subscribing in on_connect() means that if we lose the connection and
+	# reconnect then subscriptions will be renewed.
+	client.subscribe(main.topic, main.qos)
 
 # The callback for when a PUBLISH message is received from the server.
 # updates metrics for later GUI display
 def on_message(client, userdata, msg):
-    if main.clear_stats:
-	main.messages_received = 0
-	main.num_topics = 0
-	main.topics = dict()
-	main.changed = dict()		# a small subset of topics that is changed
-	main.last_changed = dict()	# the changed in the last iteration
+	if main.clear_stats:
+		main.messages_received = 0
+		main.num_topics = 0
+		main.topics = dict()
+		main.changed = dict()	# a small subset of topics that is changed
+		main.last_changed = dict() # the changed in the last iteration
 					# GUI needs this to 0 out some values
-	main.clear_stats = False
-	main.clear_store = True
+		main.clear_stats = False
+		main.clear_store = True
 
-    bytes = len (msg.payload)
-    now = time.time()
+	bytes = len (msg.payload)
+	now = time.time()
 
 #    logging.debug (msg.topic + ' ' + str(bytes) + ' ' + str(msg.payload))
 
-    main.messages_received += 1
+	main.messages_received += 1
 
-    # if not already there, add to set of topics detected
-    if msg.topic not in main.topics:
-    	main.num_topics += 1
-	newtopic = Topic(main.num_topics, msg.topic, bytes, now, msg.payload, None)
-	main.topics[msg.topic] = newtopic
-	thistopic = newtopic
-    else:
-    	existingtopic = main.topics[msg.topic]
-	existingtopic.count += 1
-	existingtopic.bytes += bytes
-	existingtopic.last_time = now
-	existingtopic.last_payload = msg.payload
-	thistopic = existingtopic
+	# if not already there, add to set of topics detected
+	if msg.topic not in main.topics:
+		main.num_topics += 1
+		newtopic = Topic(main.num_topics, msg.topic, bytes, now, msg.payload, None)
+		main.topics[msg.topic] = newtopic
+		thistopic = newtopic
+	else:
+		existingtopic = main.topics[msg.topic]
+		existingtopic.count += 1
+		existingtopic.bytes += bytes
+		existingtopic.last_time = now
+		existingtopic.last_payload = msg.payload
+		thistopic = existingtopic
 
-    if thistopic.number not in main.changed:
-	main.changed[thistopic.number] = msg.topic
-    return
+	if thistopic.number not in main.changed:
+		main.changed[thistopic.number] = msg.topic
+	return
 
 
 # reconnect and re-subscribe
@@ -260,13 +260,18 @@ def subscriber_client():
 	client.on_disconnect = on_disconnect
 	client.reconnect_delay_set(min_delay=10, max_delay=60)
 
+	if (main.user != None):
+		logging.debug ("user " + main.user)
+		client.username_pw_set(main.user, main.pwd)
+
 	if (main.is_tls):
 #		logging.debug ("cafile " + main.cafile)
 		client.tls_set(ca_certs=main.cafile, certfile=main.certfile, keyfile=main.keyfile, tls_version=ssl.PROTOCOL_SSLv23, cert_reqs=main.required)
 		client.tls_insecure_set(True)
 
-	client.connect(main.host_ip, main.port_num, 60)
+	logging.debug ("connecting to " + main.host_ip + ":" + str(main.port_num))
 
+	client.connect_async(main.host_ip, main.port_num, 60)
 	client.loop_start()
 
 
@@ -277,6 +282,8 @@ class MyApp:
 		self.port_num = None
 		self.verbose = False
 		self.client_id = None
+		self.user = None
+		self.pwd = None
 		self.topic = '#'
 		self.qos = 0
 		self.is_tls = False
@@ -308,6 +315,8 @@ class MyApp:
 		print ("\t[-h|--host host]   broker to connect to; default localhost")
 		print ("\t[-p|--port port]   port to connect to; default port 1883")
 		print ("\t[-i|--id clientid] client ID; default random")
+		print ("\t[-u|--user user]   username")
+		print ("\t[-P|--pass pwd]    password")
 		print ("\t[-t|--topic topic] topic; default #")
 		print ("\t[-q|--qos qos]     QoS; default 0")
 		print ("\t[-v|--verbose]     verbose output")
@@ -338,7 +347,7 @@ class MyApp:
 	###############################
 	def command_line(self):
 		try:
-			opts, args = getopt.getopt(sys.argv[1:], "h:p:i:t:q:vTc:C:K:R:", ["host=", "port=", "id=", "topic=", "qos=", "verbose", "tls", "cafile=", "certfile=", "keyfile=", "required="])
+			opts, args = getopt.getopt(sys.argv[1:], "h:p:i:u:P:t:q:vTc:C:K:R:", ["host=", "port=", "id=", "user=", "pass=", "topic=", "qos=", "verbose", "tls", "cafile=", "certfile=", "keyfile=", "required="])
 		except getopt.GetoptError as err:
 			# print help information and exit:
 			logging.error (str(err)) # will print something like "option -a not recognized"
@@ -351,9 +360,13 @@ class MyApp:
 			elif o in ("-h", "--host"):
 				self.host_ip = a
 			elif o in ("-p", "--port"):
-				self.port_num = a
+				self.port_num = int(a)
 			elif o in ("-i", "--id"):
 				self.client_id = a
+			elif o in ("-u", "--user"):
+				self.user = a
+			elif o in ("-P", "--pass"):
+				self.pwd = a
 			elif o in ("-t", "--topic"):
 				self.topic = a
 			elif o in ("-q", "--qos"):
@@ -575,37 +588,41 @@ class MyApp:
 		main.changed = dict()
 		numbers = set (changed.keys()) | set(last_changed.keys())
 		for number in numbers:
-		    key = changed.get(number, last_changed.get(number, None))
-		    if key == None:
-		    	logging.error ('number ' + str(number) + ' not in changed or last_changed')
-			continue
+			key = changed.get(number, last_changed.get(number, None))
+			if key == None:
+				logging.error ('number ' + str(number) + ' not in changed or last_changed')
+				continue
 
-		    topic =  main.topics[key]
+			topic =  main.topics[key]
 
-		    if topic.rowref == None:
+			if topic.rowref == None:
 
-			# UTF-8 encodings
-			try:
-				payloadstr = topic.last_payload.decode('utf-8')
-				#    logging.debug ("payload is UTF-8 " + payloadstr)
-			except UnicodeError:
-				payloadstr = "0x" + binascii.hexlify (topic.last_payload)
-				# logging.debug ("UnicodeError: payload is not UTF-8 " + topic.last_payload + " >> " + payloadstr)
+				# UTF-8 encodings
+				try:
+					payloadstr = topic.last_payload.decode('utf-8')
+					#    logging.debug ("payload is UTF-8 " + payloadstr)
+				except UnicodeError:
+					payloadstr = "0x" + binascii.hexlify (topic.last_payload)
+					# logging.debug ("UnicodeError: payload is not UTF-8 " + topic.last_payload + " >> " + payloadstr)
 
-			try:
-			    topicstr = topic.topic.decode('utf-8')
-			#    logging.debug ("topic is UTF-8 " + topicstr)
-			except UnicodeError:
-			    topicstr = topic.topic
+				try:
+					topicstr = topic.topic.decode('utf-8')
+				#	logging.debug ("topic is UTF-8 " + topicstr)
+				except UnicodeError:
+					topicstr = topic.topic
+				except AttributeError:
+					# python 3
+					topicstr = topic.topic
+
 			    # UWE: still get this error
 			    # Pango-WARNING **: Invalid UTF-8 string passed to pango_layout_set_text()
 			    # but we don't want the hex string for topic as we
 			    # do for payload
 			    # happens much less frequently for topic
 
-			msgpersec = topic.count / (self.now - self.last_time)
+				msgpersec = topic.count / (self.now - self.last_time)
 
-			rowref = main.topicstore.append(
+				rowref = main.topicstore.append(
 				[
 				topic.number,
 				topicstr,
@@ -616,30 +633,30 @@ class MyApp:
 				payloadstr
 				])
 
-			topic.rowref = rowref
-			active_topics += 1
-			updated_entries += 1
-		    else:
-		    	# redisplay only if new messages for topic
-			displayedcount = main.topicstore.get_value (topic.rowref, 2)
-			msgpersec = int((topic.count - displayedcount) / (self.now - self.last_time))
-			displayedmsgpersec = main.topicstore.get_value (topic.rowref, 3)
-			do_display = True
-			if topic.count != displayedcount:
+				topic.rowref = rowref
 				active_topics += 1
-			else:
-				if msgpersec != displayedmsgpersec:
-					do_display = True
-
-			if do_display:
 				updated_entries += 1
-				try:
-					payloadstr = topic.last_payload.decode('utf-8')
-					#    logging.debug ("payload is UTF-8 " + payloadstr)
-				except UnicodeError:
-					payloadstr = "0x" + binascii.hexlify (topic.last_payload)
-					# logging.debug ("UnicodeError: payload is not UTF-8 " + topic.last_payload + " >> " + payloadstr)
-				main.topicstore.set (topic.rowref, 2, topic.count, 3, msgpersec, 4, topic.bytes, 5, time.ctime (topic.last_time), 6, payloadstr)
+			else:
+				# redisplay only if new messages for topic
+				displayedcount = main.topicstore.get_value (topic.rowref, 2)
+				msgpersec = int((topic.count - displayedcount) / (self.now - self.last_time))
+				displayedmsgpersec = main.topicstore.get_value (topic.rowref, 3)
+				do_display = True
+				if topic.count != displayedcount:
+					active_topics += 1
+				else:
+					if msgpersec != displayedmsgpersec:
+						do_display = True
+
+				if do_display:
+					updated_entries += 1
+					try:
+						payloadstr = topic.last_payload.decode('utf-8')
+						#    logging.debug ("payload is UTF-8 " + payloadstr)
+					except UnicodeError:
+						payloadstr = "0x" + binascii.hexlify (topic.last_payload)
+						# logging.debug ("UnicodeError: payload is not UTF-8 " + topic.last_payload + " >> " + payloadstr)
+					main.topicstore.set (topic.rowref, 2, topic.count, 3, msgpersec, 4, topic.bytes, 5, time.ctime (topic.last_time), 6, payloadstr)
 
 
 		logging.debug ("updated entries " + str(updated_entries))
@@ -659,9 +676,9 @@ class MyApp:
 		print ("Number Topic                Messages Bytes Last payload", file=outfile)
 		keys = self.topics.keys()
 		for key in keys:
-		    topic =  self.topics[key]
+			topic =  self.topics[key]
 
-		    topic.dump(outfile)
+			topic.dump(outfile)
 
 		outfile.close()
 		print ("dumped to dump.lst")
