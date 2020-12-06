@@ -22,6 +22,8 @@ This python package requires
 * PyGTK https://python-gtk-3-tutorial.readthedocs.io/en/latest/
 * Eclipse Paho MQTT client API 1.5 https://www.eclipse.org/paho/clients/python/docs/
 
+Tested on both Linux and Windows.
+
 ## Usage
 
 Example usage:
