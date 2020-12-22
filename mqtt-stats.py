@@ -602,7 +602,7 @@ class MyApp:
 					payloadstr = topic.last_payload.decode('utf-8')
 					#    logging.debug ("payload is UTF-8 " + payloadstr)
 				except UnicodeError:
-					payloadstr = "0x" + binascii.hexlify (topic.last_payload)
+					payloadstr = "0x" + str(binascii.hexlify (topic.last_payload))
 					# logging.debug ("UnicodeError: payload is not UTF-8 " + topic.last_payload + " >> " + payloadstr)
 
 				try:
@@ -654,7 +654,7 @@ class MyApp:
 						payloadstr = topic.last_payload.decode('utf-8')
 						#    logging.debug ("payload is UTF-8 " + payloadstr)
 					except UnicodeError:
-						payloadstr = "0x" + binascii.hexlify (topic.last_payload)
+						payloadstr = "0x" + str (binascii.hexlify (topic.last_payload))
 						# logging.debug ("UnicodeError: payload is not UTF-8 " + topic.last_payload + " >> " + payloadstr)
 					main.topicstore.set (topic.rowref, 2, topic.count, 3, msgpersec, 4, topic.bytes, 5, time.ctime (topic.last_time), 6, payloadstr)
 
