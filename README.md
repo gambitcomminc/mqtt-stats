@@ -28,7 +28,7 @@ Tested on both Linux and Windows.
 
 Example usage:
 
-./mqtt-stats.py --host iot.eclipse.org --topic '#' --qos 2
+./mqtt-stats.py --host mqtt.eclipse.org --topic '#' --qos 2
 
 ![screenshot](https://github.com/gambitcomminc/mqtt-stats/blob/master/mqtt-stats4.png)
 
