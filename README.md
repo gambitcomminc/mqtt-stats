@@ -42,3 +42,8 @@ The blog post at
 https://gambitcomm.blogspot.com/2018/09/fire-and-forget-vs-complete-control-of.html
 
 illustrates usage of this tool to investigate topic statistics.
+
+## Related
+
+* https://github.com/gambitcomminc/golang-mqtt-topn
+* https://github.com/gambitcomminc/mqtt-explorer
