@@ -296,6 +296,36 @@ for a subscribed topic hierarchy</property>
                     <property name="height">1</property>
                   </packing>
                 </child>
+                <child>
+                  <object class="GtkEntry" id="entry2">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="invisible_char">●</property>
+                    <property name="primary_icon_stock">gtk-find</property>
+                    <property name="primary_icon_tooltip_text" translatable="yes">Regular expression match</property>
+                    <property name="placeholder_text">Match topics</property>
+                    <signal name="changed" handler="on_gtk_entry2_changed" swapped="no"/>
+                  </object>
+                  <packing>
+                    <property name="left_attach">0</property>
+                    <property name="top_attach">2</property>
+                    <property name="width">1</property>
+                    <property name="height">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="infolabel7">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="label" translatable="yes">label</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">1</property>
+                    <property name="top_attach">2</property>
+                    <property name="width">1</property>
+                    <property name="height">1</property>
+                  </packing>
+                </child>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -313,9 +343,13 @@ for a subscribed topic hierarchy</property>
                   <object class="GtkTreeView" id="treeview1">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="model">topicstore</property>
+                    <property name="model">treemodelsort1</property>
+                    <property name="reorderable">True</property>
                     <property name="rules_hint">True</property>
                     <property name="enable_grid_lines">both</property>
+                    <child internal-child="selection">
+                      <object class="GtkTreeSelection" id="treeview-selection1"/>
+                    </child>
                   </object>
                 </child>
               </object>
@@ -431,5 +465,11 @@ for a subscribed topic hierarchy</property>
       <!-- column-name gchararray2 -->
       <column type="gchararray"/>
     </columns>
+  </object>
+  <object class="GtkTreeModelFilter" id="treemodelfilter1">
+    <property name="child_model">topicstore</property>
+  </object>
+  <object class="GtkTreeModelSort" id="treemodelsort1">
+    <property name="model">treemodelfilter1</property>
   </object>
 </interface>
