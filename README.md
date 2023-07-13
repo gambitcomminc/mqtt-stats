@@ -43,6 +43,10 @@ https://gambitcomm.blogspot.com/2018/09/fire-and-forget-vs-complete-control-of.h
 
 illustrates usage of this tool to investigate topic statistics.
 
+Check this video for how MQTT 5 shared subscriptions are handled
+
+https://www.youtube.com/watch?v=D4PjSSaeOHU
+
 ## Related
 
 * https://github.com/gambitcomminc/golang-mqtt-topn
